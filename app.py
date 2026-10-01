@@ -186,7 +186,7 @@ st.title("🏥 Dighasri Channel Center POS System")
 user_role = st.session_state.user['role']
 
 if user_role == "Admin":
-    available_tabs = ["🛒 POS Billing", "📦 Master Settings & Inventory", "📊 Reports & Accounts", "⚙️ User Management"]
+    available_tabs = ["🛒 POS Billing", "📦 Master Settings & Inventory", "📊 Reports & Accounts", "⚙️️ User Management"]
 elif user_role == "Supervisor":
     available_tabs = ["🛒 POS Billing", "📦 Master Settings & Inventory", "📊 Reports & Accounts"]
 else:
@@ -527,7 +527,7 @@ if "📦 Master Settings & Inventory" in available_tabs:
                     if st.button("🔄 Update Item", type="primary"):
                         profit_m_e = unit_p_e - cost_p_e
                         c.execute("""UPDATE inventory SET supplier_name=?, item_name=?, brand_name=?, category=?, dosage=?, cost_price=?, unit_price=?, profit_margin=?, stock_qty=?, reorder_level=?, batch_no=? WHERE id=?""",
-                                  (supplier_e, i_name_e, b_name_e, cat_e, dosage_e, cost_p_e, unit_p_e, profit_m_e, stock_q_e, reorder_l_e, batch_n_e, item_id))
+                                  (supplier_e, i_name_e, b_name_e, cat_e, dosage_e, cost_p_e, unit_p_e, profit_m_e, stock_q_e, reorder_l_e, batch_no, item_id))
                         conn.commit()
                         st.success("✅ Item updated successfully!")
                         st.rerun()
@@ -694,7 +694,7 @@ if "📦 Master Settings & Inventory" in available_tabs:
 
         # --- 5. DOCTORS CRUD ---
         with m_tab4:
-            st.markdown("### 👨‍⚕️️ Doctor & Scanning Management")
+            st.markdown("### 👨‍⚕️ Doctor & Scanning Management")
             d_action = st.radio("Action:", ["View All", "➕ Add Doctor", "✏️ Edit Doctor", "🗑️ Delete Doctor"], horizontal=True, key="d_action")
 
             if d_action == "View All":
@@ -797,8 +797,9 @@ with tabs[rep_tab_index]:
             except Exception as e:
                 st.error(f"Sync Error: {e}")
 
-    sales_full_df = pd.read_sql_query("SELECT * FROM sales_history ORDER BY id DESC", conn)
-    if sales_full_df.empty and supabase:
+    # Read Sales Data safely
+    sales_full_df = pd.DataFrame()
+    if supabase:
         try:
             res = supabase.table("sales_history").select("*").order("id", desc=True).execute()
             if res.data:
@@ -806,12 +807,14 @@ with tabs[rep_tab_index]:
         except Exception:
             pass
 
-    # Prevents duplicate records from cloud/syncing issues
+    if sales_full_df.empty:
+        sales_full_df = pd.read_sql_query("SELECT * FROM sales_history ORDER BY id DESC", conn)
+
+    # STRICT DEDUPLICATION: Prevents Duplicate Calculation Errors in Cloud
     if not sales_full_df.empty:
-        if 'id' in sales_full_df.columns:
-            sales_full_df = sales_full_df.drop_duplicates(subset=['id'], keep='last')
-        elif 'prescription_no' in sales_full_df.columns and 'bill_details' in sales_full_df.columns and 'date' in sales_full_df.columns:
-            sales_full_df = sales_full_df.drop_duplicates(subset=['prescription_no', 'bill_details', 'date'], keep='last')
+        dedup_cols = [c for c in ['prescription_no', 'bill_type', 'total_amount', 'date'] if c in sales_full_df.columns]
+        if dedup_cols:
+            sales_full_df = sales_full_df.drop_duplicates(subset=dedup_cols, keep='last')
 
     main_rep_tab1, main_rep_tab2 = st.tabs(["💰 Financial Reports (ගිණුම් වාර්තා)", "⚠️ Expiry & Re-Order Tracking"])
     
